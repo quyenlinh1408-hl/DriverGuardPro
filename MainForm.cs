@@ -602,7 +602,9 @@ private void OnScanAndHealAll(object? sender, EventArgs e)
             var remainingErrors = GetBrokenDevices();
             if (remainingErrors.Count > 0)
             {
-                AppendLog($"[3/4] Phat hien {remainingErrors.Count} thiet bi thieu/loi driver. Dang tu dong tai ban chuan...", Color.OrangeRed);
+                string sysInfo = GetSystemSpecs();
+                AppendLog($"[3/4] Phat hien {remainingErrors.Count} thiet bi thieu/loi driver.", Color.OrangeRed);
+                AppendLog($" -> Thong so may dang chay: {sysInfo}", Color.Cyan);
 
                 if (await IsInternetAvailableAsync())
                 {
@@ -613,19 +615,19 @@ private void OnScanAndHealAll(object? sender, EventArgs e)
                             AppendLog($" -> Bo qua {dev.Name} (Thiet bi ao/khong co ma HardwareID hop le).", Color.Yellow);
                             continue;
                         }
-                        AppendLog($" -> Dang tai & cai dat ngam cho: {dev.Name}...", Color.Cyan);
+                        AppendLog($" -> Dang tu dong tai & cai dat driver cho: {dev.Name} ({dev.HardwareId})...", Color.Cyan);
                         bool ok = await DownloadAndInstallFromCatalogAsync(dev.HardwareId, dev.DeviceId);
-                        AppendLog(ok
-                            ? $" -> Da nap xong driver cho {dev.Name}."
-                            : $" -> Khong tim thay goi tu dong cho {dev.Name}.",
-                            ok ? Color.LightGreen : Color.Yellow);
+                        if (ok)
+                            AppendLog($" -> Da tai va nap xong driver chuan cho {dev.Name}!", Color.LightGreen);
+                        else
+                            AppendLog($" -> Khong tim thay goi .cab tu dong cho {dev.Name}.", Color.Yellow);
                     }
                     RunHiddenCommand("pnputil.exe", "/scan-devices");
                     await Task.Delay(2000);
                 }
                 else
                 {
-                    AppendLog("[CANH BAO MANG] May dang mat Internet nen khong the tai them driver moi.", Color.Red);
+                    AppendLog("[CANH BAO MANG] May dang mat Internet nen khong the tai driver moi ve may.", Color.Red);
                 }
             }
             else
@@ -656,6 +658,40 @@ private void OnScanAndHealAll(object? sender, EventArgs e)
             this.Invoke(new Action(() => btnScanErrors.Enabled = true));
         }
     });
+}
+
+private string GetSystemSpecs()
+{
+    string manufacturer = "Unknown";
+    string model = "Unknown";
+    string osCaption = "Windows";
+
+    try
+    {
+        using (var sysSearcher = new ManagementObjectSearcher("SELECT Manufacturer, Model FROM Win32_ComputerSystem"))
+        {
+            foreach (ManagementObject sys in sysSearcher.Get())
+            {
+                manufacturer = sys["Manufacturer"]?.ToString()?.Trim() ?? "Unknown";
+                model = sys["Model"]?.ToString()?.Trim() ?? "Unknown";
+                break;
+            }
+        }
+
+        using (var osSearcher = new ManagementObjectSearcher("SELECT Caption, OSArchitecture FROM Win32_OperatingSystem"))
+        {
+            foreach (ManagementObject os in osSearcher.Get())
+            {
+                string cap = os["Caption"]?.ToString()?.Trim() ?? "Windows";
+                string arch = os["OSArchitecture"]?.ToString()?.Trim() ?? "64-bit";
+                osCaption = $"{cap} ({arch})";
+                break;
+            }
+        }
+    }
+    catch { }
+
+    return $"{manufacturer} {model} | {osCaption}";
 }
 
 private System.Collections.Generic.List<(string Name, string HardwareId, string DeviceId, int ErrorCode)> GetBrokenDevices()
