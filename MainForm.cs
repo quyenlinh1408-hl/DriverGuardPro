@@ -151,7 +151,7 @@ namespace DriverGuardPrototype
 
             btnPowerMain = new Button
             {
-                Text = "Khởi Động Lại Máy",
+                Text = "Khởi Động Lại",
                 Location = new Point(372, 452),
                 Size = new Size(175, 34),
                 BackColor = Color.FromArgb(215, 130, 0),
@@ -182,7 +182,7 @@ namespace DriverGuardPrototype
                 ForeColor = Color.White,
                 ShowImageMargin = false
             };
-            menuShutdown = new ToolStripMenuItem("Tắt Nguồn Máy Tính")
+            menuShutdown = new ToolStripMenuItem("Tắt Nguồn")
             {
                 ForeColor = Color.FromArgb(255, 100, 100),
                 Font = new Font("Segoe UI", 9.5f, FontStyle.Bold)
@@ -250,8 +250,8 @@ namespace DriverGuardPrototype
                 btnOpenFolder.Text = "Open Backup Folder";
                 btnCheckUpdate.Text = "Update App";
                 lblLogTitle.Text = "Activity Log && Conflict Alerts:";
-                btnPowerMain.Text = "Restart Computer";
-                menuShutdown.Text = "Shut Down Computer";
+                btnPowerMain.Text = "Restart";
+                menuShutdown.Text = "Shut Down";
 
                 if (trayIcon?.ContextMenuStrip != null && trayIcon.ContextMenuStrip.Items.Count >= 3)
                 {
@@ -271,8 +271,8 @@ namespace DriverGuardPrototype
                 btnOpenFolder.Text = "Mở Kho Backup";
                 btnCheckUpdate.Text = "Cập Nhật App";
                 lblLogTitle.Text = "Nhật ký hoạt động && Cảnh báo xung đột:";
-                btnPowerMain.Text = "Khởi Động Lại Máy";
-                menuShutdown.Text = "Tắt Nguồn Máy Tính";
+                btnPowerMain.Text = "Khởi Động Lại";
+                menuShutdown.Text = "Tắt Nguồn";
 
                 if (trayIcon?.ContextMenuStrip != null && trayIcon.ContextMenuStrip.Items.Count >= 3)
                 {
@@ -286,8 +286,8 @@ namespace DriverGuardPrototype
         private void ExecutePowerAction(bool isRestart)
         {
             string action = isRestart
-                ? (isEnglish ? "restart the computer" : "khởi động lại máy tính")
-                : (isEnglish ? "shut down the computer" : "tắt nguồn máy tính");
+                ? (isEnglish ? "restart " : "khởi động lại ")
+                : (isEnglish ? "shut down " : "tắt nguồn ");
             string title = isEnglish ? "Confirm power action" : "Xác nhận thao tác nguồn";
             string message = isEnglish
                 ? $"Are you sure you want to {action}?"
