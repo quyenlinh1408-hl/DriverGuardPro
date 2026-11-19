@@ -8,12 +8,13 @@ using System.Threading.Tasks;
 using Microsoft.Win32;
 using System.Net.Http;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace DriverGuardPrototype
 {
     public class MainForm : Form
     {
-        private const string CurrentVersion = "1.0.3";
+        private const string CurrentVersion = "1.0.4";
         private const string GitHubApiUrl = "https://api.github.com/repos/quyenlinh1408-hl/DriverGuardPro/releases/latest";
         private NotifyIcon trayIcon;
         private ManagementEventWatcher? watcher;
@@ -28,6 +29,9 @@ namespace DriverGuardPrototype
         private Button btnBackupNow;
         private Button btnScanErrors;
         private Button btnOpenFolder;
+        private ComboBox cboLanguage = null!;
+        private Label lblLogTitle = null!;
+        private bool isEnglish = false;
         private RichTextBox txtLog;
 
         public MainForm()
@@ -83,6 +87,25 @@ namespace DriverGuardPrototype
             };
             btnCheckUpdate.Click += OnCheckUpdate;
 
+            cboLanguage = new ComboBox
+            {
+                Location = new Point(352, 18),
+                Size = new Size(100, 28),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                BackColor = Color.FromArgb(45, 45, 55),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            cboLanguage.Items.AddRange(new object[] { "VietNam", "English" });
+            cboLanguage.SelectedIndex = 0;
+            cboLanguage.SelectedIndexChanged += (s, e) =>
+            {
+                isEnglish = cboLanguage.SelectedIndex == 1;
+                ApplyLanguage();
+            };
+
 
             lblStatus = new Label
             {
@@ -123,7 +146,7 @@ namespace DriverGuardPrototype
             btnOpenFolder.Click += (s, e) => { if (Directory.Exists(backupFolder)) Process.Start("explorer.exe", backupFolder); };
 
             // Khung hien thi nhat ky hoat dong (Log)
-            Label lblLogTitle = new Label
+            lblLogTitle = new Label
             {
                 Text = "Nhat ky hoat dong & Canh bao xung dot:",
                 Font = new Font("Segoe UI", 9, FontStyle.Bold),
@@ -145,9 +168,11 @@ namespace DriverGuardPrototype
 
             // Them tat ca vao Form
             this.Controls.AddRange(new Control[] {
-                lblTitle, btnCheckUpdate, lblStatus, chkBlockUpdate, chkAutoStart,
+                lblTitle, btnCheckUpdate, cboLanguage, lblStatus, chkBlockUpdate, chkAutoStart,
                 btnBackupNow, btnScanErrors, btnOpenFolder, lblLogTitle, txtLog
             });
+
+            ApplyLanguage();
 
             // Khi bam nut X tren cua so -> Thu nho xuong khay he thong thay vi tat han
             this.FormClosing += (s, e) =>
@@ -159,6 +184,48 @@ namespace DriverGuardPrototype
                     trayIcon.ShowBalloonTip(3000, "Driver Guard van dang chay", "Ung dung da thu nho xuong khay he thong de tiep tuc bao ve.", ToolTipIcon.Info);
                 }
             };
+        }
+
+        private void ApplyLanguage()
+        {
+            if (isEnglish)
+            {
+                this.Text = $"Driver Guard Pro v{CurrentVersion} - Driver Protection System";
+                lblStatus.Text = "Status: Monitoring hardware conflicts in Real-time";
+                chkBlockUpdate.Text = "Block Windows Update from overwriting Drivers (Recommended)";
+                chkAutoStart.Text = "Start automatically with Windows";
+                btnBackupNow.Text = "Backup Drivers";
+                btnScanErrors.Text = "Scan && Auto-Fix";
+                btnOpenFolder.Text = "Open Backup Folder";
+                btnCheckUpdate.Text = "Update App";
+                lblLogTitle.Text = "Activity Log && Conflict Alerts:";
+
+                if (trayIcon?.ContextMenuStrip != null && trayIcon.ContextMenuStrip.Items.Count >= 3)
+                {
+                    trayIcon.ContextMenuStrip.Items[0].Text = "Open Control Panel";
+                    trayIcon.ContextMenuStrip.Items[2].Text = "Exit Application";
+                }
+                AppendLog("[SYSTEM] Language switched to English.", Color.Cyan);
+            }
+            else
+            {
+                this.Text = $"Driver Guard Pro v{CurrentVersion} - Hệ Thống Bảo Vệ Driver";
+                lblStatus.Text = "Trạng thái: Đang giám sát xung đột Real-time";
+                chkBlockUpdate.Text = "Chặn Windows Update tự động ghi đè Driver (Khuyên dùng)";
+                chkAutoStart.Text = "Tự động khởi động cùng Windows";
+                btnBackupNow.Text = "Sao Lưu Driver";
+                btnScanErrors.Text = "Quét && Sửa Lỗi";
+                btnOpenFolder.Text = "Mở Kho Backup";
+                btnCheckUpdate.Text = "Cập Nhật App";
+                lblLogTitle.Text = "Nhật ký hoạt động && Cảnh báo xung đột:";
+
+                if (trayIcon?.ContextMenuStrip != null && trayIcon.ContextMenuStrip.Items.Count >= 3)
+                {
+                    trayIcon.ContextMenuStrip.Items[0].Text = "Mở bảng điều khiển";
+                    trayIcon.ContextMenuStrip.Items[2].Text = "Thoát hẳn chương trình";
+                }
+                AppendLog("[HỆ THỐNG] Đã chuyển ngôn ngữ sang Tiếng Việt.", Color.Cyan);
+            }
         }
 
         private Button CreateStyledButton(string text, Point location, Color bgColor)
@@ -398,24 +465,21 @@ private bool IsAutoStartEnabled()
 private void OnScanAndHealAll(object? sender, EventArgs e)
 {
     btnScanErrors.Enabled = false;
-    AppendLog("=== BAT DAU QUY TRINH SUA LOI TOAN DIEN ===", Color.Cyan);
+    AppendLog("=== BAT DAU QUY TRINH QUET & SUA LOI TU DONG ===", Color.Cyan);
 
-    Task.Run(() =>
+    Task.Run(async () =>
     {
         try
         {
-            // 1. Tat Fast Startup (Khoi dong nhanh) qua Registry de chong ket driver
-            AppendLog("[1/4] Dang toi uu cau hinh nguon Windows (Tat Fast Startup)...", Color.Yellow);
+            AppendLog("[1/4] Dang toi uu cau hinh nguon & don sach Registry xung dot...", Color.Yellow);
             using (RegistryKey? powerKey = Registry.LocalMachine.OpenSubKey(@"SYSTEM\CurrentControlSet\Control\Session Manager\Power", true))
             {
                 powerKey?.SetValue("HiberbootEnabled", 0, RegistryValueKind.DWord);
             }
 
-            // 2. Don sach khoa UpperFilters/LowerFilters gay loi Code 39 cho Bluetooth & Wifi
-            AppendLog("[2/4] Dang don sach khoa Registry gay xung dot (Code 19/39)...", Color.Yellow);
             string[] classGuids = {
-                "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}", // Lop thiet bi Bluetooth
-                "{4d36e972-e325-11ce-bfc1-08002be10318}"  // Lop thiet bi Mang (Wifi/LAN)
+                "{e0cbf06c-cd8b-4647-bb8a-263b43f0f974}",
+                "{4d36e972-e325-11ce-bfc1-08002be10318}"
             };
             foreach (string guid in classGuids)
             {
@@ -429,53 +493,75 @@ private void OnScanAndHealAll(object? sender, EventArgs e)
                 }
             }
 
-            // 3. Tat che do tu ngat nguon tiet kiem pin cho tat ca card mang & Bluetooth
-            AppendLog("[3/4] Dang khoa tinh nang tu ngat nguon tiet kiem pin Wifi/Bluetooth...", Color.Yellow);
             string psCommand = "Get-PnpDevice -Class Net,Bluetooth -ErrorAction SilentlyContinue | ForEach-Object { " +
                                "$path = 'HKLM:\\SYSTEM\\CurrentControlSet\\Enum\\' + $_.InstanceId + '\\Device Parameters'; " +
                                "if (Test-Path $path) { Set-ItemProperty -Path $path -Name 'EnhancedPowerManagementEnabled' -Value 0 -ErrorAction SilentlyContinue } }";
             RunHiddenCommand("powershell.exe", $"-NoProfile -ExecutionPolicy Bypass -Command \"{psCommand}\"");
 
-            // 4. Quet toan bo thiet bi dang bi loi vang, Reset va nap ep buoc driver chuan
-            AppendLog("[4/4] Dang quet phan cung loi va phuc hoi driver...", Color.Yellow);
-            int fixedCount = 0;
-            ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity");
-            
-            foreach (ManagementObject device in searcher.Get())
+            AppendLog("[2/4] Dang quet phan cung va phuc hoi tu kho du phong...", Color.Yellow);
+            RunHiddenCommand("pnputil.exe", "/scan-devices");
+            if (Directory.Exists(backupFolder) && Directory.GetDirectories(backupFolder).Length > 0)
             {
-                var err = device["ConfigManagerErrorCode"];
-                if (err != null && Convert.ToInt32(err) != 0)
-                {
-                    fixedCount++;
-                    string devName = device["Name"]?.ToString() ?? "Thiet bi";
-                    string devId = device["DeviceID"]?.ToString() ?? "";
-                    AppendLog($" -> Phat hien loi tren: {devName} (Code {err}). Dang xu ly...", Color.OrangeRed);
-
-                    // Nap ep buoc toan bo driver tu kho backup neu co
-                    if (Directory.Exists(backupFolder) && Directory.GetDirectories(backupFolder).Length > 0)
-                    {
-                        RunHiddenCommand("pnputil.exe", $"/add-driver \"{backupFolder}\\*.inf\" /subdirs /install /force");
-                    }
-
-                    // Khoi dong lai thiet bi (Disable -> Enable)
-                    if (!string.IsNullOrEmpty(devId))
-                    {
-                        RunHiddenCommand("pnputil.exe", $"/disable-device \"{devId}\"");
-                        System.Threading.Thread.Sleep(1500);
-                        RunHiddenCommand("pnputil.exe", $"/enable-device \"{devId}\"");
-                    }
-                }
+                RunHiddenCommand("pnputil.exe", $"/add-driver \"{backupFolder}\\*.inf\" /subdirs /install /force");
             }
 
-            // Khoi dong lai dich vu Bluetooth Support Service cua Windows
+            var initialErrors = GetBrokenDevices();
+            foreach (var dev in initialErrors)
+            {
+                if (!string.IsNullOrEmpty(dev.DeviceId))
+                {
+                    RunHiddenCommand("pnputil.exe", $"/disable-device \"{dev.DeviceId}\"");
+                    await Task.Delay(1200);
+                    RunHiddenCommand("pnputil.exe", $"/enable-device \"{dev.DeviceId}\"");
+                }
+            }
             RunHiddenCommand("net.exe", "stop bthserv");
             RunHiddenCommand("net.exe", "start bthserv");
+            await Task.Delay(2000);
 
-            DetectAndDownloadMissingDrivers();
-            if (fixedCount == 0)
-                AppendLog("[HOAN TAT] He thong da duoc toi uu chong loi 100%! Hien khong co thiet bi nao loi.", Color.LightGreen);
+            var remainingErrors = GetBrokenDevices();
+            if (remainingErrors.Count > 0)
+            {
+                AppendLog($"[3/4] Phat hien {remainingErrors.Count} thiet bi thieu/loi driver. Dang tu dong tai ban chuan...", Color.OrangeRed);
+
+                if (await IsInternetAvailableAsync())
+                {
+                    foreach (var dev in remainingErrors)
+                    {
+                        if (string.IsNullOrEmpty(dev.HardwareId)) continue;
+                        AppendLog($" -> Dang tai & cai dat ngam cho: {dev.Name}...", Color.Cyan);
+                        bool ok = await DownloadAndInstallFromCatalogAsync(dev.HardwareId, dev.DeviceId);
+                        AppendLog(ok
+                            ? $" -> Da nap xong driver cho {dev.Name}."
+                            : $" -> Khong tim thay goi tu dong cho {dev.Name}.",
+                            ok ? Color.LightGreen : Color.Yellow);
+                    }
+                    RunHiddenCommand("pnputil.exe", "/scan-devices");
+                    await Task.Delay(2000);
+                }
+                else
+                {
+                    AppendLog("[CANH BAO MANG] May dang mat Internet nen khong the tai them driver moi.", Color.Red);
+                }
+            }
             else
-                AppendLog($"[HOAN TAT] Da sua xong {fixedCount} thiet bi loi! Neu van chua nhan, hay khoi dong lai may 1 lan.", Color.LightGreen);
+            {
+                AppendLog("[3/4] Khong can tai them driver ngoai.", Color.LightGreen);
+            }
+
+            AppendLog("[4/4] Dang quet kiem tra trang thai an toan toan he thong...", Color.Yellow);
+            var finalCheck = GetBrokenDevices();
+            if (finalCheck.Count == 0)
+            {
+                AppendLog("[AN TOAN 100%] Toan bo driver tren may da hoat dong on dinh va sach loi!", Color.LightGreen);
+            }
+            else
+            {
+                foreach (var errDev in finalCheck)
+                {
+                    AppendLog($"[LUU Y] {errDev.Name} van con ma loi Code {errDev.ErrorCode} (Hay khoi dong lai may 1 lan de hoan tat).", Color.OrangeRed);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -486,6 +572,99 @@ private void OnScanAndHealAll(object? sender, EventArgs e)
             this.Invoke(new Action(() => btnScanErrors.Enabled = true));
         }
     });
+}
+
+private System.Collections.Generic.List<(string Name, string HardwareId, string DeviceId, int ErrorCode)> GetBrokenDevices()
+{
+    var list = new System.Collections.Generic.List<(string Name, string HardwareId, string DeviceId, int ErrorCode)>();
+    using (var searcher = new ManagementObjectSearcher("SELECT * FROM Win32_PnPEntity"))
+    {
+        foreach (ManagementObject dev in searcher.Get())
+        {
+            var errObj = dev["ConfigManagerErrorCode"];
+            int errCode = errObj != null ? Convert.ToInt32(errObj) : 0;
+            string name = dev["Name"]?.ToString() ?? "Unknown Device";
+
+            if ((errCode != 0 && errCode != 22) || name.Contains("Unknown", StringComparison.OrdinalIgnoreCase))
+            {
+                string devId = dev["DeviceID"]?.ToString() ?? "";
+                string[]? hwIds = dev["HardwareID"] as string[];
+                string targetHwId = (hwIds != null && hwIds.Length > 0) ? hwIds[0] : "";
+                list.Add((name, targetHwId, devId, errCode));
+            }
+        }
+    }
+    return list;
+}
+
+private async Task<bool> DownloadAndInstallFromCatalogAsync(string hardwareId, string deviceId)
+{
+    try
+    {
+        using HttpClient client = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
+        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)");
+
+        string searchUrl = $"https://microsoft.com{Uri.EscapeDataString(hardwareId)}";
+        string searchHtml = await client.GetStringAsync(searchUrl);
+
+        Match idMatch = Regex.Match(searchHtml, @"id=""([a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12})_link""", RegexOptions.IgnoreCase);
+        if (!idMatch.Success) return false;
+
+        string updateId = idMatch.Groups[1].Value;
+        string postPayload = $"updateIDs={Uri.EscapeDataString($"[{{\"size\":0,\"languages\":\"\",\"uidInfo\":\"{updateId}\",\"updateID\":\"{updateId}\"}}]")}&updateIDsBlockedForImport=&wsusApiPresent=&contentSyncApiPresent=&sku=&serverName=&ssl=&portNumber=&version=";
+        var content = new StringContent(postPayload, System.Text.Encoding.UTF8, "application/x-www-form-urlencoded");
+
+        HttpResponseMessage dialogResponse = await client.PostAsync("https://microsoft.com", content);
+        string dialogHtml = await dialogResponse.Content.ReadAsStringAsync();
+
+        Match cabUrlMatch = Regex.Match(dialogHtml, @"https?://[^\s'""]+\.cab", RegexOptions.IgnoreCase);
+        if (!cabUrlMatch.Success) return false;
+
+        string tempDir = Path.Combine(Path.GetTempPath(), "DriverGuard_Temp", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(tempDir);
+        string cabFilePath = Path.Combine(tempDir, "driver.cab");
+        string extractDir = Path.Combine(tempDir, "Extracted");
+        Directory.CreateDirectory(extractDir);
+
+        byte[] cabBytes = await client.GetByteArrayAsync(cabUrlMatch.Value);
+        await File.WriteAllBytesAsync(cabFilePath, cabBytes);
+
+        RunHiddenCommand("expand.exe", $"-F:* \"{cabFilePath}\" \"{extractDir}\"");
+        RunHiddenCommand("pnputil.exe", $"/add-driver \"{extractDir}\\*.inf\" /subdirs /install /force");
+
+        string savedFolder = Path.Combine(backupFolder, $"AutoSaved_{DateTime.Now:yyyyMMdd_HHmmss}");
+        Directory.CreateDirectory(savedFolder);
+        foreach (string file in Directory.GetFiles(extractDir, "*.*", SearchOption.AllDirectories))
+        {
+            File.Copy(file, Path.Combine(savedFolder, Path.GetFileName(file)), true);
+        }
+
+        if (!string.IsNullOrEmpty(deviceId))
+        {
+            RunHiddenCommand("pnputil.exe", $"/restart-device \"{deviceId}\"");
+        }
+
+        try { Directory.Delete(tempDir, true); } catch { }
+        return true;
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+private async Task<bool> IsInternetAvailableAsync()
+{
+    try
+    {
+        using HttpClient pingClient = new HttpClient { Timeout = TimeSpan.FromSeconds(4) };
+        using var response = await pingClient.GetAsync("https://microsoft.com");
+        return response.IsSuccessStatusCode;
+    }
+    catch
+    {
+        return false;
+    }
 }
 
 private void RunHiddenCommand(string fileName, string arguments)
