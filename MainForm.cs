@@ -14,7 +14,7 @@ namespace DriverGuardPrototype
 {
     public class MainForm : Form
     {
-        private const string CurrentVersion = "1.0.5";
+        private const string CurrentVersion = "1.0.6";
         private const string GitHubApiUrl = "https://api.github.com/repos/quyenlinh1408-hl/DriverGuardPro/releases/latest";
         private NotifyIcon trayIcon;
         private ManagementEventWatcher? watcher;
@@ -608,7 +608,11 @@ private void OnScanAndHealAll(object? sender, EventArgs e)
                 {
                     foreach (var dev in remainingErrors)
                     {
-                        if (string.IsNullOrEmpty(dev.HardwareId)) continue;
+                        if (string.IsNullOrEmpty(dev.HardwareId))
+                        {
+                            AppendLog($" -> Bo qua {dev.Name} (Thiet bi ao/khong co ma HardwareID hop le).", Color.Yellow);
+                            continue;
+                        }
                         AppendLog($" -> Dang tai & cai dat ngam cho: {dev.Name}...", Color.Cyan);
                         bool ok = await DownloadAndInstallFromCatalogAsync(dev.HardwareId, dev.DeviceId);
                         AppendLog(ok
@@ -663,13 +667,27 @@ private System.Collections.Generic.List<(string Name, string HardwareId, string 
         {
             var errObj = dev["ConfigManagerErrorCode"];
             int errCode = errObj != null ? Convert.ToInt32(errObj) : 0;
-            string name = dev["Name"]?.ToString() ?? "Unknown Device";
 
-            if ((errCode != 0 && errCode != 22) || name.Contains("Unknown", StringComparison.OrdinalIgnoreCase))
+            // Chi bat nhung thiet bi thuc su co ma loi (loai bo Code 0 va Code 22)
+            if (errCode != 0 && errCode != 22)
             {
+                string name = dev["Name"]?.ToString() ?? "Unknown Device";
                 string devId = dev["DeviceID"]?.ToString() ?? "";
                 string[]? hwIds = dev["HardwareID"] as string[];
-                string targetHwId = (hwIds != null && hwIds.Length > 0) ? hwIds[0] : "";
+
+                string targetHwId = "";
+                if (hwIds != null && hwIds.Length > 0)
+                {
+                    // Uu tien chuoi chua VEN/DEV hoac VID/PID ngan gon (khong dinh REV_ hay SUBSYS_) de tang ty le tim trung tren Catalog
+                    targetHwId = Array.Find(hwIds, id =>
+                        ((id.Contains("VEN_", StringComparison.OrdinalIgnoreCase) && id.Contains("DEV_", StringComparison.OrdinalIgnoreCase)) ||
+                         (id.Contains("VID_", StringComparison.OrdinalIgnoreCase) && id.Contains("PID_", StringComparison.OrdinalIgnoreCase)))
+                        && !id.Contains("REV_", StringComparison.OrdinalIgnoreCase)
+                        && !id.Contains("SUBSYS_", StringComparison.OrdinalIgnoreCase))
+                        ?? Array.Find(hwIds, id => !id.Contains("REV_", StringComparison.OrdinalIgnoreCase))
+                        ?? hwIds[0];
+                }
+
                 list.Add((name, targetHwId, devId, errCode));
             }
         }
