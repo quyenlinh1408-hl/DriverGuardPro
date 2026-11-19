@@ -14,7 +14,7 @@ namespace DriverGuardPrototype
 {
     public class MainForm : Form
     {
-        private const string CurrentVersion = "1.0.4";
+        private const string CurrentVersion = "1.0.5";
         private const string GitHubApiUrl = "https://api.github.com/repos/quyenlinh1408-hl/DriverGuardPro/releases/latest";
         private NotifyIcon trayIcon;
         private ManagementEventWatcher? watcher;
@@ -32,6 +32,10 @@ namespace DriverGuardPrototype
         private ComboBox cboLanguage = null!;
         private Label lblLogTitle = null!;
         private bool isEnglish = false;
+        private Button btnPowerMain = null!;
+        private Button btnPowerArrow = null!;
+        private ContextMenuStrip powerMenu = null!;
+        private ToolStripMenuItem menuShutdown = null!;
         private RichTextBox txtLog;
 
         public MainForm()
@@ -56,7 +60,7 @@ namespace DriverGuardPrototype
         {
             // Cau hinh cua so chinh (Dark Mode hien dai)
             this.Text = "Driver Guard - He Thong Bao Ve Driver";
-            this.Size = new Size(620, 480);
+            this.Size = new Size(620, 530);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -145,6 +149,52 @@ namespace DriverGuardPrototype
             btnOpenFolder = CreateStyledButton("Mo Kho Backup", new Point(402, 155), Color.FromArgb(75, 75, 85));
             btnOpenFolder.Click += (s, e) => { if (Directory.Exists(backupFolder)) Process.Start("explorer.exe", backupFolder); };
 
+            btnPowerMain = new Button
+            {
+                Text = "Khởi Động Lại Máy",
+                Location = new Point(372, 452),
+                Size = new Size(175, 34),
+                BackColor = Color.FromArgb(215, 130, 0),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnPowerMain.FlatAppearance.BorderSize = 0;
+            btnPowerMain.Click += (s, e) => ExecutePowerAction(isRestart: true);
+
+            btnPowerArrow = new Button
+            {
+                Text = "▲",
+                Location = new Point(548, 452),
+                Size = new Size(34, 34),
+                BackColor = Color.FromArgb(185, 110, 0),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Font = new Font("Segoe UI", 8.5f, FontStyle.Bold),
+                Cursor = Cursors.Hand
+            };
+            btnPowerArrow.FlatAppearance.BorderSize = 0;
+
+            powerMenu = new ContextMenuStrip
+            {
+                BackColor = Color.FromArgb(40, 40, 48),
+                ForeColor = Color.White,
+                ShowImageMargin = false
+            };
+            menuShutdown = new ToolStripMenuItem("Tắt Nguồn Máy Tính")
+            {
+                ForeColor = Color.FromArgb(255, 100, 100),
+                Font = new Font("Segoe UI", 9.5f, FontStyle.Bold)
+            };
+            menuShutdown.Click += (s, e) => ExecutePowerAction(isRestart: false);
+            powerMenu.Items.Add(menuShutdown);
+
+            btnPowerArrow.Click += (s, e) =>
+            {
+                powerMenu.Show(btnPowerMain, new Point(0, -powerMenu.Height));
+            };
+
             // Khung hien thi nhat ky hoat dong (Log)
             lblLogTitle = new Label
             {
@@ -169,7 +219,8 @@ namespace DriverGuardPrototype
             // Them tat ca vao Form
             this.Controls.AddRange(new Control[] {
                 lblTitle, btnCheckUpdate, cboLanguage, lblStatus, chkBlockUpdate, chkAutoStart,
-                btnBackupNow, btnScanErrors, btnOpenFolder, lblLogTitle, txtLog
+                btnBackupNow, btnScanErrors, btnOpenFolder, btnPowerMain, btnPowerArrow,
+                lblLogTitle, txtLog
             });
 
             ApplyLanguage();
@@ -199,6 +250,8 @@ namespace DriverGuardPrototype
                 btnOpenFolder.Text = "Open Backup Folder";
                 btnCheckUpdate.Text = "Update App";
                 lblLogTitle.Text = "Activity Log && Conflict Alerts:";
+                btnPowerMain.Text = "Restart Computer";
+                menuShutdown.Text = "Shut Down Computer";
 
                 if (trayIcon?.ContextMenuStrip != null && trayIcon.ContextMenuStrip.Items.Count >= 3)
                 {
@@ -218,6 +271,8 @@ namespace DriverGuardPrototype
                 btnOpenFolder.Text = "Mở Kho Backup";
                 btnCheckUpdate.Text = "Cập Nhật App";
                 lblLogTitle.Text = "Nhật ký hoạt động && Cảnh báo xung đột:";
+                btnPowerMain.Text = "Khởi Động Lại Máy";
+                menuShutdown.Text = "Tắt Nguồn Máy Tính";
 
                 if (trayIcon?.ContextMenuStrip != null && trayIcon.ContextMenuStrip.Items.Count >= 3)
                 {
@@ -225,6 +280,31 @@ namespace DriverGuardPrototype
                     trayIcon.ContextMenuStrip.Items[2].Text = "Thoát hẳn chương trình";
                 }
                 AppendLog("[HỆ THỐNG] Đã chuyển ngôn ngữ sang Tiếng Việt.", Color.Cyan);
+            }
+        }
+
+        private void ExecutePowerAction(bool isRestart)
+        {
+            string action = isRestart
+                ? (isEnglish ? "restart the computer" : "khởi động lại máy tính")
+                : (isEnglish ? "shut down the computer" : "tắt nguồn máy tính");
+            string title = isEnglish ? "Confirm power action" : "Xác nhận thao tác nguồn";
+            string message = isEnglish
+                ? $"Are you sure you want to {action}?"
+                : $"Bạn có chắc muốn {action}?";
+
+            if (MessageBox.Show(message, title, MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            {
+                return;
+            }
+
+            try
+            {
+                RunHiddenCommand("shutdown.exe", isRestart ? "/r /f /t 3" : "/s /f /t 3");
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[LOI NGUON] {ex.Message}", Color.Red);
             }
         }
 
