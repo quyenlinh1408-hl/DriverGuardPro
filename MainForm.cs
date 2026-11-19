@@ -13,7 +13,7 @@ namespace DriverGuardPrototype
 {
     public class MainForm : Form
     {
-        private const string CurrentVersion = "1.0.2";
+        private const string CurrentVersion = "1.0.3";
         private const string GitHubApiUrl = "https://api.github.com/repos/quyenlinh1408-hl/DriverGuardPro/releases/latest";
         private NotifyIcon trayIcon;
         private ManagementEventWatcher? watcher;
